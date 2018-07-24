@@ -28,8 +28,13 @@ function isCoordinateWithinRectangle(
   );
 }
 
+export interface OffsetEvent {
+  x: number;
+  y: number;
+}
 export interface DropEvent<T = any> {
   dropData: T;
+  offset: OffsetEvent;
 }
 
 @Directive({
@@ -101,13 +106,23 @@ export class DroppableDirective implements OnInit, OnDestroy {
         );
 
         let currentDragDropData: any;
+        let currentMousePosition: OffsetEvent;
+
         const overlaps$ = drag$.pipe(
           map(({ clientX, clientY, dropData }) => {
             currentDragDropData = dropData;
+
             if (droppableRectangle.updateCache) {
               droppableRectangle.cache = this.element.nativeElement.getBoundingClientRect();
+
               droppableRectangle.updateCache = false;
             }
+
+            currentMousePosition = {
+              x: clientX - (droppableRectangle.cache as ClientRect).left,
+              y: clientY - (droppableRectangle.cache as ClientRect).top
+            };
+
             return isCoordinateWithinRectangle(
               clientX,
               clientY,
@@ -130,7 +145,8 @@ export class DroppableDirective implements OnInit, OnDestroy {
             );
             this.zone.run(() => {
               this.dragEnter.next({
-                dropData: currentDragDropData
+                dropData: currentDragDropData,
+                offset: currentMousePosition
               });
             });
           });
@@ -138,7 +154,8 @@ export class DroppableDirective implements OnInit, OnDestroy {
         overlaps$.pipe(filter(overlapsNow => overlapsNow)).subscribe(() => {
           this.zone.run(() => {
             this.dragOver.next({
-              dropData: currentDragDropData
+              dropData: currentDragDropData,
+              offset: currentMousePosition
             });
           });
         });
@@ -156,7 +173,8 @@ export class DroppableDirective implements OnInit, OnDestroy {
             );
             this.zone.run(() => {
               this.dragLeave.next({
-                dropData: currentDragDropData
+                dropData: currentDragDropData,
+                offset: currentMousePosition
               });
             });
           });
@@ -164,6 +182,7 @@ export class DroppableDirective implements OnInit, OnDestroy {
         drag$.subscribe({
           complete: () => {
             deregisterScrollListener();
+
             this.renderer.removeClass(
               this.element.nativeElement,
               this.dragActiveClass
@@ -175,7 +194,8 @@ export class DroppableDirective implements OnInit, OnDestroy {
               );
               this.zone.run(() => {
                 this.drop.next({
-                  dropData: currentDragDropData
+                  dropData: currentDragDropData,
+                  offset: currentMousePosition
                 });
               });
             }
